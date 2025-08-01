@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\BatchController;
+use App\Http\Controllers\SaleController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -37,6 +38,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('my-batches', [BatchController::class, 'myBatches'])->name('batches.my');
         Route::get('{batch}/sales', [BatchController::class, 'sales'])->name('batches.sales');
         Route::patch('{batch}/status', [BatchController::class, 'updateStatus'])->name('batches.status');
+    });
+
+    // Rutas para ventas (sales)
+    Route::apiResource('sales', SaleController::class);
+    
+    // Rutas adicionales específicas para ventas
+    Route::prefix('sales')->group(function () {
+        Route::get('statistics', [SaleController::class, 'statistics'])->name('sales.statistics');
     });
 });
 
@@ -76,3 +85,9 @@ Route::get('status', function () {
 // Rutas temporales para testing sin autenticación
 Route::post('test/batches', [BatchController::class, 'store'])->name('test.batches.store');
 Route::get('test/batches', [BatchController::class, 'index'])->name('test.batches.index');
+Route::post('test/sales', [SaleController::class, 'store'])->name('test.sales.store');
+Route::get('test/sales', [SaleController::class, 'index'])->name('test.sales.index');
+Route::get('test/sales/statistics', [SaleController::class, 'statistics'])->name('test.sales.statistics');
+Route::get('test/sales/{sale}', [SaleController::class, 'show'])->name('test.sales.show');
+Route::put('test/sales/{sale}', [SaleController::class, 'update'])->name('test.sales.update');
+Route::delete('test/sales/{sale}', [SaleController::class, 'destroy'])->name('test.sales.destroy');

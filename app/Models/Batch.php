@@ -86,4 +86,21 @@ class Batch extends Model
     {
         return $query->where('status', 'sold');
     }
+
+    /**
+     * Obtener la cantidad disponible del lote
+     */
+    public function getQuantityAvailableAttribute()
+    {
+        $soldQuantity = $this->sales()->sum('quantity_sold');
+        return $this->quantity - $soldQuantity;
+    }
+
+    /**
+     * Verificar si el lote tiene stock disponible
+     */
+    public function hasAvailableStock($requestedQuantity)
+    {
+        return $this->quantity_available >= $requestedQuantity;
+    }
 }
