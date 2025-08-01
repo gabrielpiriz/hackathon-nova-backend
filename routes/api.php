@@ -105,6 +105,7 @@ Route::get('status', function () {
 // Rutas temporales para testing sin autenticación
 Route::post('test/batches', [BatchController::class, 'store'])->name('test.batches.store');
 Route::get('test/batches', [BatchController::class, 'index'])->name('test.batches.index');
+Route::delete('test/batches/{id}', [BatchController::class, 'destroy'])->name('test.batches.destroy');
 Route::post('test/sales', [SaleController::class, 'store'])->name('test.sales.store');
 Route::get('test/sales', [SaleController::class, 'index'])->name('test.sales.index');
 Route::get('test/sales/statistics', [SaleController::class, 'statistics'])->name('test.sales.statistics');

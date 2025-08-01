@@ -217,4 +217,195 @@ class BatchControllerTest extends TestCase
         // Verificar que NO se creó el lote
         $this->assertEquals(0, Batch::count());
     }
+
+    /**
+     * Test de éxito: Eliminar lote disponible sin ventas
+     */
+    public function test_delete_available_batch_without_sales_success(): void
+    {
+        // Arrange: Crear un lote disponible sin ventas
+        $animalType = AnimalType::first();
+        $batch = Batch::create([
+            'producer_id' => 1,
+            'animal_type_id' => $animalType->id,
+            'quantity' => 10,
+            'age_months' => 12,
+            'average_weight_kg' => 300.00,
+            'suggested_price_ars' => 100000.00,
+            'suggested_price_usd' => 500.00,
+            'status' => 'available',
+            'notes' => 'Lote de prueba para eliminar'
+        ]);
+
+        // Verificar que el lote existe
+        $this->assertEquals(1, Batch::count());
+
+        // Act: Eliminar el lote
+        $response = $this->deleteJson("/api/test/batches/{$batch->id}");
+
+        // Assert: Verificar eliminación exitosa
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'message' => 'Lote eliminado exitosamente'
+            ])
+            ->assertJsonStructure([
+                'success',
+                'message',
+                'data' => [
+                    'deleted_batch_id',
+                    'deleted_at',
+                    'batch_info' => [
+                        'code',
+                        'animal_type',
+                        'quantity'
+                    ]
+                ]
+            ]);
+
+        // Verificar que el lote fue eliminado de la base de datos
+        $this->assertEquals(0, Batch::count());
+        $this->assertDatabaseMissing('batches', [
+            'id' => $batch->id
+        ]);
+
+        // Verificar datos específicos de la respuesta
+        $responseData = $response->json('data');
+        $this->assertEquals($batch->id, $responseData['deleted_batch_id']);
+        $this->assertEquals($animalType->name, $responseData['batch_info']['animal_type']);
+        $this->assertEquals(10, $responseData['batch_info']['quantity']);
+    }
+
+    /**
+     * Test de error: Intentar eliminar lote que no existe
+     */
+    public function test_delete_nonexistent_batch_fails(): void
+    {
+        // Act: Intentar eliminar un lote que no existe
+        $response = $this->deleteJson('/api/test/batches/999');
+
+        // Assert: Verificar error 404
+        $response->assertStatus(404)
+            ->assertJson([
+                'success' => false,
+                'message' => 'Lote no encontrado',
+                'error' => 'El lote especificado no existe'
+            ]);
+
+        // Verificar que no se afectó la base de datos
+        $this->assertEquals(0, Batch::count());
+    }
+
+    /**
+     * Test de error: Intentar eliminar lote con ventas
+     */
+    public function test_delete_batch_with_sales_fails(): void
+    {
+        // Arrange: Crear un lote con una venta
+        $animalType = AnimalType::first();
+        $batch = Batch::create([
+            'producer_id' => 1,
+            'animal_type_id' => $animalType->id,
+            'quantity' => 10,
+            'age_months' => 12,
+            'average_weight_kg' => 300.00,
+            'suggested_price_ars' => 100000.00,
+            'suggested_price_usd' => 500.00,
+            'status' => 'available',
+            'notes' => 'Lote con venta'
+        ]);
+
+        // Crear una venta para el lote
+        $batch->sales()->create([
+            'quantity_sold' => 5,
+            'unit_price_ars' => 10000.00,
+            'unit_price_usd' => 50.00,
+            'total_amount_ars' => 50000.00,
+            'total_amount_usd' => 250.00,
+            'sale_date' => now(),
+            'buyer_name' => 'Comprador Test',
+            'buyer_contact' => 'test@buyer.com',
+            'payment_method' => 'transfer',
+            'notes' => 'Venta de prueba'
+        ]);
+
+        // Verificar que el lote y la venta existen
+        $this->assertEquals(1, Batch::count());
+        $this->assertEquals(1, $batch->sales()->count());
+
+        // Act: Intentar eliminar el lote
+        $response = $this->deleteJson("/api/test/batches/{$batch->id}");
+
+        // Assert: Verificar que falla por tener ventas
+        $response->assertStatus(422)
+            ->assertJson([
+                'success' => false,
+                'message' => 'No se puede eliminar el lote'
+            ])
+            ->assertJsonStructure([
+                'success',
+                'message',
+                'error',
+                'restrictions'
+            ]);
+
+        // Verificar que contiene información sobre las ventas
+        $restrictions = $response->json('restrictions');
+        $this->assertNotEmpty($restrictions);
+        $this->assertEquals('sales_exist', $restrictions[0]['type']);
+        $this->assertStringContainsString('ventas registradas', $restrictions[0]['message']);
+        $this->assertEquals(1, $restrictions[0]['count']);
+
+        // Verificar que el lote NO fue eliminado
+        $this->assertEquals(1, Batch::count());
+        $this->assertDatabaseHas('batches', [
+            'id' => $batch->id
+        ]);
+    }
+
+    /**
+     * Test de error: Intentar eliminar lote vendido
+     */
+    public function test_delete_sold_batch_fails(): void
+    {
+        // Arrange: Crear un lote vendido
+        $animalType = AnimalType::first();
+        $batch = Batch::create([
+            'producer_id' => 1,
+            'animal_type_id' => $animalType->id,
+            'quantity' => 10,
+            'age_months' => 12,
+            'average_weight_kg' => 300.00,
+            'suggested_price_ars' => 100000.00,
+            'suggested_price_usd' => 500.00,
+            'status' => 'sold', // Estado vendido
+            'notes' => 'Lote vendido'
+        ]);
+
+        // Act: Intentar eliminar el lote vendido
+        $response = $this->deleteJson("/api/test/batches/{$batch->id}");
+
+        // Assert: Verificar que falla por estar vendido
+        $response->assertStatus(422)
+            ->assertJson([
+                'success' => false,
+                'message' => 'No se puede eliminar el lote'
+            ]);
+
+        // Verificar restricciones específicas
+        $restrictions = $response->json('restrictions');
+        $this->assertNotEmpty($restrictions);
+        
+        // Buscar restricción por estado vendido
+        $statusRestriction = collect($restrictions)->firstWhere('type', 'status_sold');
+        $this->assertNotNull($statusRestriction);
+        $this->assertStringContainsString('marcado como vendido', $statusRestriction['message']);
+
+        // Verificar que el lote NO fue eliminado
+        $this->assertEquals(1, Batch::count());
+        $this->assertDatabaseHas('batches', [
+            'id' => $batch->id,
+            'status' => 'sold'
+        ]);
+    }
 }

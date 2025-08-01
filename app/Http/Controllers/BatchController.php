@@ -274,9 +274,159 @@ class BatchController extends Controller
 
     /**
      * Remove the specified resource from storage.
+     * 
+     * @param string $id
+     * @return JsonResponse
      */
-    public function destroy(string $id)
+    public function destroy(string $id): JsonResponse
     {
-        //
+        try {
+            // Buscar el lote con sus relaciones
+            $batch = Batch::with(['sales', 'priceHistories', 'producer', 'animalType'])->find($id);
+
+            // Validar que el lote existe
+            if (!$batch) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Lote no encontrado',
+                    'error' => 'El lote especificado no existe'
+                ], 404);
+            }
+
+            // Validaciones de negocio
+            $canDelete = $this->validateCanDelete($batch);
+            if (!$canDelete['can_delete']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se puede eliminar el lote',
+                    'error' => $canDelete['reason'],
+                    'restrictions' => $canDelete['restrictions']
+                ], 422);
+            }
+
+            // Verificar permisos del usuario (si está autenticado)
+            if (Auth::check() && $batch->producer_id !== Auth::id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No autorizado',
+                    'error' => 'No tiene permisos para eliminar este lote'
+                ], 403);
+            }
+
+            // Guardar información para el log antes de eliminar
+            $batchInfo = [
+                'id' => $batch->id,
+                'producer_id' => $batch->producer_id,
+                'animal_type' => $batch->animalType->name,
+                'quantity' => $batch->quantity,
+                'status' => $batch->status,
+                'created_at' => $batch->created_at,
+            ];
+
+            // Ejecutar eliminación en transacción
+            $result = DB::transaction(function () use ($batch) {
+                // 1. Eliminar historial de precios relacionado
+                if ($batch->priceHistories->count() > 0) {
+                    $batch->priceHistories()->delete();
+                }
+
+                // 2. Eliminar el lote
+                $batch->delete();
+                
+                return true;
+            });
+
+            // Log del evento exitoso
+            Log::info('Lote eliminado exitosamente', [
+                'deleted_batch' => $batchInfo,
+                'deleted_by_user_id' => Auth::id(),
+                'timestamp' => now()
+            ]);
+
+            // Retornar respuesta exitosa
+            return response()->json([
+                'success' => true,
+                'message' => 'Lote eliminado exitosamente',
+                'data' => [
+                    'deleted_batch_id' => $batchInfo['id'],
+                    'deleted_at' => now()->format('Y-m-d H:i:s'),
+                    'batch_info' => [
+                        'code' => 'Lot ' . str_pad($batchInfo['id'], 3, '0', STR_PAD_LEFT),
+                        'animal_type' => $batchInfo['animal_type'],
+                        'quantity' => $batchInfo['quantity'],
+                    ]
+                ]
+            ], 200);
+
+        } catch (Exception $e) {
+            // Log del error
+            Log::error('Error al eliminar lote', [
+                'batch_id' => $id,
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            // Retornar respuesta de error
+            return response()->json([
+                'success' => false,
+                'message' => 'Error interno del servidor al eliminar el lote',
+                'error' => config('app.debug') ? $e->getMessage() : 'Error interno'
+            ], 500);
+        }
+    }
+
+    /**
+     * Validar si un lote se puede eliminar
+     * 
+     * @param Batch $batch
+     * @return array
+     */
+    private function validateCanDelete(Batch $batch): array
+    {
+        $restrictions = [];
+        
+        // No se puede eliminar si tiene ventas
+        if ($batch->sales->count() > 0) {
+            $restrictions[] = [
+                'type' => 'sales_exist',
+                'message' => 'El lote tiene ventas registradas',
+                'count' => $batch->sales->count(),
+                'total_sold' => $batch->sales->sum('quantity_sold')
+            ];
+        }
+
+        // No se puede eliminar si está vendido completamente
+        if ($batch->status === 'sold') {
+            $restrictions[] = [
+                'type' => 'status_sold',
+                'message' => 'El lote está marcado como vendido',
+                'status' => $batch->status
+            ];
+        }
+
+        // No se puede eliminar si está reservado y tiene precio histórico reciente
+        if ($batch->status === 'reserved' && $batch->priceHistories->count() > 0) {
+            $recentPriceHistory = $batch->priceHistories()
+                ->where('created_at', '>=', now()->subDays(7))
+                ->count();
+            
+            if ($recentPriceHistory > 0) {
+                $restrictions[] = [
+                    'type' => 'reserved_with_recent_activity',
+                    'message' => 'El lote está reservado con actividad reciente',
+                    'recent_activity_count' => $recentPriceHistory
+                ];
+            }
+        }
+
+        // Resultado de validación
+        $canDelete = empty($restrictions);
+        
+        return [
+            'can_delete' => $canDelete,
+            'reason' => $canDelete ? null : 'El lote no puede ser eliminado debido a restricciones de negocio',
+            'restrictions' => $restrictions
+        ];
     }
 }
