@@ -176,6 +176,7 @@ function renderBatchesTable() {
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                 <button onclick="viewBatch(${batch.id})" class="text-blue-600 hover:text-blue-900">Ver</button>
+                ${batch.status !== 'sold' ? `<button onclick="markAsSold(${batch.id})" class="text-green-600 hover:text-green-900">Marcar como vendido</button>` : ''}
                 <button onclick="deleteBatch(${batch.id})" class="text-red-600 hover:text-red-900">Eliminar</button>
             </td>
         `;
@@ -229,6 +230,31 @@ async function loadAnimalTypes() {
 function viewBatch(id) {
     // Implement view functionality
     showToast(`Ver lote #${id} (funcionalidad pendiente)`);
+}
+
+async function markAsSold(id) {
+    if (!confirm('¿Estás seguro de que quieres marcar este lote como vendido?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${apiClient.baseURL}/test/batches/${id}/mark-as-sold`, {
+            method: 'PATCH',
+            headers: apiClient.getAuthHeaders(),
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Lote marcado como vendido exitosamente');
+            loadBatches(); // Reload the table
+        } else {
+            showToast(data.message || 'Error al marcar el lote como vendido', 'error');
+        }
+    } catch (error) {
+        console.error('Error marking batch as sold:', error);
+        showToast('Error al marcar el lote como vendido', 'error');
+    }
 }
 
 async function deleteBatch(id) {

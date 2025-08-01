@@ -12,8 +12,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Http;
 use Exception;
+use Illuminate\Support\Facades\Http;
 
 class BatchController extends Controller
 {
@@ -196,7 +196,7 @@ class BatchController extends Controller
 
     /**
      * Store a newly created resource in storage.
-     *
+     * 
      * @param StoreBatchRequest $request
      * @return JsonResponse
      */
@@ -273,6 +273,99 @@ class BatchController extends Controller
     public function update(Request $request, string $id)
     {
         //
+    }
+
+    /**
+     * Mark a batch as sold
+     * 
+     * @param string $id
+     * @return JsonResponse
+     */
+    public function markAsSold(string $id): JsonResponse
+    {
+        try {
+            // Buscar el lote con sus relaciones
+            $batch = Batch::with(['sales', 'producer', 'animalType'])->find($id);
+
+            // Validar que el lote existe
+            if (!$batch) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Lote no encontrado',
+                    'error' => 'El lote especificado no existe'
+                ], 404);
+            }
+
+            // Verificar permisos del usuario (si está autenticado)
+            if (Auth::check() && $batch->producer_id !== Auth::id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No autorizado',
+                    'error' => 'No tiene permisos para modificar este lote'
+                ], 403);
+            }
+
+            // Validar que el lote no esté ya vendido
+            if ($batch->status === 'sold') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El lote ya está marcado como vendido',
+                    'error' => 'No se puede cambiar el estado de un lote ya vendido'
+                ], 422);
+            }
+
+            // Actualizar el status en una transacción
+            DB::transaction(function () use ($batch) {
+                $batch->update(['status' => 'sold']);
+            });
+
+            // Log del evento exitoso
+            Log::info('Lote marcado como vendido', [
+                'batch_id' => $batch->id,
+                'producer_id' => $batch->producer_id,
+                'previous_status' => $batch->getOriginal('status'),
+                'updated_by_user_id' => Auth::id(),
+                'timestamp' => now()
+            ]);
+
+            // Recargar el lote con relaciones actualizadas
+            $batch->refresh();
+            $batch->load(['producer', 'animalType', 'sales']);
+
+            // Retornar respuesta exitosa
+            return response()->json([
+                'success' => true,
+                'message' => 'Lote marcado como vendido exitosamente',
+                'data' => [
+                    'batch_id' => $batch->id,
+                    'previous_status' => $batch->getOriginal('status'),
+                    'new_status' => 'sold',
+                    'updated_at' => $batch->updated_at->format('Y-m-d H:i:s'),
+                    'batch_info' => [
+                        'code' => 'Lot ' . str_pad($batch->id, 3, '0', STR_PAD_LEFT),
+                        'animal_type' => $batch->animalType->name,
+                        'quantity' => $batch->quantity,
+                        'producer' => $batch->producer->full_name
+                    ]
+                ]
+            ], 200);
+
+        } catch (Exception $e) {
+            // Log del error
+            Log::error('Error al marcar lote como vendido', [
+                'batch_id' => $id,
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            // Retornar respuesta de error
+            return response()->json([
+                'success' => false,
+                'message' => 'Error interno del servidor al marcar el lote como vendido',
+                'error' => config('app.debug') ? $e->getMessage() : 'Error interno'
+            ], 500);
+        }
     }
 
     /**
