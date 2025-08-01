@@ -13,16 +13,19 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call([
-            AnimalTypeSeeder::class,
-        ]);
-
-        // User::factory(10)->create();
-
+        // Crear usuario primero
         User::factory()->create([
             'first_name' => 'Test',
             'last_name' => 'User',
             'email' => 'test@example.com',
         ]);
+
+        // Luego ejecutar los seeders
+        $this->call([
+            AnimalTypeSeeder::class,
+            BatchSeeder::class,
+        ]);
+
+        // User::factory(10)->create();
     }
 }

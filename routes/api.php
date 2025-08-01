@@ -73,5 +73,6 @@ Route::get('status', function () {
 |--------------------------------------------------------------------------
 */
 
-// Ruta temporal para testing sin autenticación
+// Rutas temporales para testing sin autenticación
 Route::post('test/batches', [BatchController::class, 'store'])->name('test.batches.store');
+Route::get('test/batches', [BatchController::class, 'index'])->name('test.batches.index');
