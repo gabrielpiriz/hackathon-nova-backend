@@ -15,16 +15,13 @@ class PriceHistory extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'animal_type_id',
+        'batch_id',
         'date',
-        'average_price_ars',
-        'average_price_usd',
+        'price_ars',
+        'price_usd',
         'market_trend',
         'source',
-        'weight_range_min',
-        'weight_range_max',
-        'age_range_min',
-        'age_range_max',
+        'notes',
     ];
 
     /**
@@ -34,20 +31,16 @@ class PriceHistory extends Model
      */
     protected $casts = [
         'date' => 'date',
-        'average_price_ars' => 'decimal:2',
-        'average_price_usd' => 'decimal:2',
-        'weight_range_min' => 'decimal:2',
-        'weight_range_max' => 'decimal:2',
-        'age_range_min' => 'integer',
-        'age_range_max' => 'integer',
+        'price_ars' => 'decimal:2',
+        'price_usd' => 'decimal:2',
     ];
 
     /**
-     * Relación: Un registro de precio histórico pertenece a un tipo de animal
+     * Relación: Un registro de precio histórico pertenece a un lote
      */
-    public function animalType()
+    public function batch()
     {
-        return $this->belongsTo(AnimalType::class);
+        return $this->belongsTo(Batch::class);
     }
 
     /**
@@ -59,24 +52,18 @@ class PriceHistory extends Model
     }
 
     /**
-     * Scope para filtrar por rango de peso
+     * Scope para obtener historial de un lote específico
      */
-    public function scopeForWeightRange($query, $minWeight, $maxWeight)
+    public function scopeForBatch($query, $batchId)
     {
-        return $query->where(function ($q) use ($minWeight, $maxWeight) {
-            $q->where('weight_range_min', '<=', $maxWeight)
-              ->where('weight_range_max', '>=', $minWeight);
-        });
+        return $query->where('batch_id', $batchId);
     }
 
     /**
-     * Scope para filtrar por rango de edad
+     * Scope para obtener tendencia de precios
      */
-    public function scopeForAgeRange($query, $minAge, $maxAge)
+    public function scopeWithTrend($query, $trend)
     {
-        return $query->where(function ($q) use ($minAge, $maxAge) {
-            $q->where('age_range_min', '<=', $maxAge)
-              ->where('age_range_max', '>=', $minAge);
-        });
+        return $query->where('market_trend', $trend);
     }
 }

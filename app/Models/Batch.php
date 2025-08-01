@@ -64,6 +64,14 @@ class Batch extends Model
     }
 
     /**
+     * Relación: Un lote puede tener muchos registros de precio histórico
+     */
+    public function priceHistories()
+    {
+        return $this->hasMany(PriceHistory::class);
+    }
+
+    /**
      * Scope para lotes disponibles
      */
     public function scopeAvailable($query)

@@ -13,21 +13,17 @@ return new class extends Migration
     {
         Schema::create('price_histories', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('animal_type_id')->constrained()->onDelete('cascade');
+            $table->foreignId('batch_id')->constrained()->onDelete('cascade');
             $table->date('date');
-            $table->decimal('average_price_ars', 12, 2);
-            $table->decimal('average_price_usd', 12, 2);
+            $table->decimal('price_ars', 12, 2);
+            $table->decimal('price_usd', 12, 2);
             $table->enum('market_trend', ['up', 'down', 'stable'])->default('stable');
-            $table->string('source')->default('manual');
-            $table->decimal('weight_range_min', 8, 2)->nullable();
-            $table->decimal('weight_range_max', 8, 2)->nullable();
-            $table->integer('age_range_min')->nullable();
-            $table->integer('age_range_max')->nullable();
+            $table->string('source')->default('system');
+            $table->text('notes')->nullable();
             $table->timestamps();
 
-            $table->index(['animal_type_id', 'date']);
+            $table->index(['batch_id', 'date']);
             $table->index('date');
-            $table->unique(['animal_type_id', 'date', 'source']);
         });
     }
 

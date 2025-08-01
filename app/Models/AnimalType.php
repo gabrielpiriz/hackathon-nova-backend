@@ -27,11 +27,5 @@ class AnimalType extends Model
         return $this->hasMany(Batch::class);
     }
 
-    /**
-     * Relación: Un tipo de animal puede tener muchos registros de precio histórico
-     */
-    public function priceHistories()
-    {
-        return $this->hasMany(PriceHistory::class);
-    }
+
 }
