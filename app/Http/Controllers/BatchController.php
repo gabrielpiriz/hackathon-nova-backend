@@ -36,7 +36,7 @@ class BatchController extends Controller
 
             // Crear el lote con los datos validados
             $batch = Batch::create([
-                'producer_id' => Auth::id(), // Usuario autenticado
+                'producer_id' => Auth::id() ?? 1, // Usuario autenticado o usuario de prueba
                 'animal_type_id' => $request->validated('animal_type_id'),
                 'quantity' => $request->validated('quantity'),
                 'age_months' => $request->validated('age_months'),

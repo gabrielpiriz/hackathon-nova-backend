@@ -66,3 +66,12 @@ Route::get('status', function () {
         'version' => '1.0.0'
     ]);
 });
+
+/*
+|--------------------------------------------------------------------------
+| Testing Routes (SIN AUTENTICACIÓN - SOLO PARA DESARROLLO)
+|--------------------------------------------------------------------------
+*/
+
+// Ruta temporal para testing sin autenticación
+Route::post('test/batches', [BatchController::class, 'store'])->name('test.batches.store');
