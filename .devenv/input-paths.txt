@@ -1,0 +1,6 @@
+/Users/gabrielpiriz/work/hackathon-nova-backend/.devenv/flake.json
+/Users/gabrielpiriz/work/hackathon-nova-backend/.devenv.flake.nix
+/Users/gabrielpiriz/work/hackathon-nova-backend/devenv.local.nix
+/Users/gabrielpiriz/work/hackathon-nova-backend/devenv.lock
+/Users/gabrielpiriz/work/hackathon-nova-backend/devenv.nix
+/Users/gabrielpiriz/work/hackathon-nova-backend/devenv.yaml

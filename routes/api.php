@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BatchController;
 use App\Http\Controllers\SaleController;
 use Illuminate\Http\Request;
@@ -15,6 +16,25 @@ use Illuminate\Support\Facades\Route;
 | be assigned to the "api" middleware group. Make something great!
 |
 */
+
+/*
+|--------------------------------------------------------------------------
+| Authentication Routes
+|--------------------------------------------------------------------------
+|
+| Rutas para autenticación de usuarios
+|
+*/
+
+// Public authentication routes
+Route::post('register', [AuthController::class, 'register'])->name('auth.register');
+Route::post('login', [AuthController::class, 'login'])->name('auth.login');
+
+// Protected authentication routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('logout', [AuthController::class, 'logout'])->name('auth.logout');
+    Route::get('profile', [AuthController::class, 'profile'])->name('auth.profile');
+});
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
