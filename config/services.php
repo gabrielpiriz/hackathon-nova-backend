@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'price_analysis' => [
+        'url' => env('PRICE_ANALYSIS_SERVICE_URL'),
+        'timeout' => env('PRICE_ANALYSIS_SERVICE_TIMEOUT', 30),
+    ],
+
 ];
