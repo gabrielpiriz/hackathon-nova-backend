@@ -52,12 +52,13 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 Route::middleware('auth:sanctum')->group(function () {
     // Rutas para lotes (batches)
     Route::apiResource('batches', BatchController::class);
-    
+
     // Rutas adicionales específicas para lotes si se necesitan en el futuro
     Route::prefix('batches')->group(function () {
         Route::get('my-batches', [BatchController::class, 'myBatches'])->name('batches.my');
         Route::get('{batch}/sales', [BatchController::class, 'sales'])->name('batches.sales');
         Route::patch('{batch}/status', [BatchController::class, 'updateStatus'])->name('batches.status');
+        Route::post('analyze', [BatchController::class, 'analyze'])->name('batches.analyze');
     });
 
     // Rutas para ventas (sales)
@@ -112,3 +113,4 @@ Route::get('test/sales/statistics', [SaleController::class, 'statistics'])->name
 Route::get('test/sales/{sale}', [SaleController::class, 'show'])->name('test.sales.show');
 Route::put('test/sales/{sale}', [SaleController::class, 'update'])->name('test.sales.update');
 Route::delete('test/sales/{sale}', [SaleController::class, 'destroy'])->name('test.sales.destroy');
+Route::post('test/batches/analyze', [BatchController::class, 'analyze'])->name('test.batches.analyze');

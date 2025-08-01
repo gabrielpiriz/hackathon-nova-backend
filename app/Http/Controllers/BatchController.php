@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreBatchRequest;
 use App\Http\Resources\BatchResource;
 use App\Models\Batch;
+use App\Models\PriceHistory;
+use App\Models\AnimalType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 use Exception;
 
 class BatchController extends Controller
@@ -193,7 +196,7 @@ class BatchController extends Controller
 
     /**
      * Store a newly created resource in storage.
-     * 
+     *
      * @param StoreBatchRequest $request
      * @return JsonResponse
      */
@@ -428,5 +431,122 @@ class BatchController extends Controller
             'reason' => $canDelete ? null : 'El lote no puede ser eliminado debido a restricciones de negocio',
             'restrictions' => $restrictions
         ];
+    }
+
+    /**
+     * Analyze price histories for all batches and get suggested prices
+     *
+     * @return JsonResponse
+     */
+    public function analyze(): JsonResponse
+    {
+        try {
+            // Get all batches with their price histories and animal types
+            $batches = Batch::with(['priceHistories', 'animalType'])->get();
+
+            $priceHistoriesPayload = [];
+
+            foreach ($batches as $batch) {
+                $priceHistory = [];
+
+                // Get price history for this batch, ordered by date
+                $histories = $batch->priceHistories()->orderBy('date')->get();
+
+                foreach ($histories as $history) {
+                    $priceHistory[] = [
+                        'date' => $history->date->format('Y-m-d'),
+                        'price' => (float) $history->price_usd
+                    ];
+                }
+
+                if (!empty($priceHistory)) {
+                    $priceHistoriesPayload[] = [
+                        'batch_id' => 'B' . str_pad($batch->id, 3, '0', STR_PAD_LEFT),
+                        'animal_type' => strtolower($batch->animalType->name),
+                        'price_history' => $priceHistory
+                    ];
+                }
+            }
+
+            // If no price histories found, return empty response
+            if (empty($priceHistoriesPayload)) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'No price histories found for analysis',
+                    'suggested_prices' => []
+                ]);
+            }
+
+            // Prepare payload for external service
+            $payload = [
+                'price_histories' => $priceHistoriesPayload
+            ];
+
+            // Get service configuration
+            $serviceUrl = config('services.price_analysis.url');
+            $timeout = config('services.price_analysis.timeout', 30);
+
+            if (!$serviceUrl) {
+                throw new Exception('Price analysis service URL not configured');
+            }
+
+            // Make HTTP request to external service
+            $response = Http::timeout($timeout)->post($serviceUrl, $payload);
+
+            if (!$response->successful()) {
+                throw new Exception('External service request failed: ' . $response->status());
+            }
+
+            $suggestedPrices = $response->json('suggested_prices', []);
+
+            // Update batches with suggested prices
+            DB::beginTransaction();
+
+            $updatedBatches = [];
+            $exchangeRate = 40; // Hardcoded rate: 1 USD = 40 ARS
+
+            foreach ($suggestedPrices as $suggestedPrice) {
+                // Extract batch ID from the format "B001"
+                $batchId = (int) substr($suggestedPrice['batch_id'], 1);
+
+                $batch = Batch::find($batchId);
+                if ($batch) {
+                    $batch->update([
+                        'suggested_price_usd' => $suggestedPrice['suggested_price'],
+                        'suggested_price_ars' => $suggestedPrice['suggested_price'] * $exchangeRate
+                    ]);
+
+                    $updatedBatches[] = $batch;
+                }
+            }
+
+            DB::commit();
+
+            // Log successful analysis
+            Log::info('Price analysis completed successfully', [
+                'batches_analyzed' => count($priceHistoriesPayload),
+                'batches_updated' => count($updatedBatches)
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Price analysis completed successfully',
+                'suggested_prices' => $suggestedPrices
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+
+            Log::error('Error during price analysis', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error during price analysis',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
     }
 }
